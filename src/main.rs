@@ -7,12 +7,8 @@ use dockworker::Docker;
 use dockworker::response::Response;
 use futures::stream::StreamExt;
 use futures::stream::TryStreamExt;
-use std::any::Any;
 use std::fs::{self, File};
-use std::io::{self, Write};
-use std::os::fd::AsRawFd;
 use std::path::Path;
-use std::process::Command;
 use sys_mount::SupportedFilesystems;
 use tar::Archive;
 
@@ -112,18 +108,22 @@ async fn export_overlay_image(image: &str, work_dir: &str) -> Result<()> {
         tokio::io::copy(&mut res, &mut tmp_file).await.unwrap();
     }
 
-    println!("extracting raw overlay image: {}", image);
+    
+
+    println!("extracting raw overlay image to memory: {}", image);
     let mut tar_archive = Archive::new(File::open("temp.tar")?);
     for file in tar_archive.entries().unwrap() {
         let mut tar_file = file?;
         let dst_path = extract_dir.join(tar_file.path()?);
 
-        let header = tar_file.header();
-        println!("header: {:?}", header.());
         match tar_file.header().entry_type() {
             tar::EntryType::Regular => {
                 let mut dst_file = File::create(dst_path)?;
                 std::io::copy(&mut tar_file, &mut dst_file)?;
+
+                // if dst_path.ends_with("manifest.json") {
+                //     println!("image manifest: {:?}", image_manifest);
+                // }
             }
             tar::EntryType::Directory => {
                 tokio::fs::create_dir_all(dst_path).await?;
