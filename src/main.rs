@@ -1,4 +1,5 @@
 mod cli;
+mod docker_helper;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -79,23 +80,23 @@ async fn export_overlay_image(image: &str, work_dir: &str) -> Result<()> {
 
     let docker = Docker::connect_with_defaults()?;
 
-    println!("pulling overlay image: {}", image);
-    let (image_name, tag) = image.split_once(":").unwrap_or((image, "latest"));
-    let mut download_stats = docker.create_image(image_name, tag).await?;
-    while let Some(Ok(stat)) = download_stats.next().await {
-        match stat {
-            Response::Status(status) => {
-                println!("{status:?}");
-            }
-            Response::Progress(progress) => {
-                println!("{progress:?}");
-            }
-            Response::Error(err) => {
-                println!("error: {err:?}");
-            }
-            _ => {}
-        }
-    }
+    // println!("pulling overlay image: {}", image);
+    // let (image_name, tag) = image.split_once(":").unwrap_or((image, "latest"));
+    // let mut download_stats = docker.create_image(image_name, tag).await?;
+    // while let Some(Ok(stat)) = download_stats.next().await {
+    //     match stat {
+    //         Response::Status(status) => {
+    //             println!("{status:?}");
+    //         }
+    //         Response::Progress(progress) => {
+    //             println!("{progress:?}");
+    //         }
+    //         Response::Error(err) => {
+    //             println!("error: {err:?}");
+    //         }
+    //         _ => {}
+    //     }
+    // }
 
     // TODO: optimsie with tar stream decompression in memory?
     {
@@ -108,8 +109,6 @@ async fn export_overlay_image(image: &str, work_dir: &str) -> Result<()> {
         tokio::io::copy(&mut res, &mut tmp_file).await.unwrap();
     }
 
-    
-
     println!("extracting raw overlay image to memory: {}", image);
     let mut tar_archive = Archive::new(File::open("temp.tar")?);
     for file in tar_archive.entries().unwrap() {
@@ -118,12 +117,14 @@ async fn export_overlay_image(image: &str, work_dir: &str) -> Result<()> {
 
         match tar_file.header().entry_type() {
             tar::EntryType::Regular => {
-                let mut dst_file = File::create(dst_path)?;
-                std::io::copy(&mut tar_file, &mut dst_file)?;
-
-                // if dst_path.ends_with("manifest.json") {
-                //     println!("image manifest: {:?}", image_manifest);
-                // }
+                if dst_path.ends_with("manifest.json") {
+                    let manifest: Vec<docker_helper::DockerManifest> =
+                        serde_json::from_reader(&mut tar_file)?;
+                    println!("image manifest: {:?}", manifest);
+                } else {
+                    let mut dst_file = File::create(dst_path)?;
+                    std::io::copy(&mut tar_file, &mut dst_file)?;
+                }
             }
             tar::EntryType::Directory => {
                 tokio::fs::create_dir_all(dst_path).await?;
