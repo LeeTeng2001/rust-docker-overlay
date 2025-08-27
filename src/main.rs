@@ -9,16 +9,23 @@ use dockworker::response::Response;
 use futures::stream::StreamExt;
 use futures::stream::TryStreamExt;
 use oci_spec::image::MediaType;
+use procfs::MountEntry;
 use std::collections::HashMap;
+use std::ffi::CString;
 use std::ffi::OsString;
+use std::fs::Permissions;
 use std::fs::{self, File};
 use std::io::Read;
 use std::os::fd::AsRawFd;
 use std::os::unix;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
+use std::ptr::null;
 use sys_mount::SupportedFilesystems;
 use tar::Archive;
+use tokio::runtime::Runtime;
 
 #[derive(Default, Debug)]
 struct NamespaceInfo {
@@ -201,10 +208,15 @@ async fn export_overlay_image(image: &str, work_dir: &str, pull: bool) -> Result
             match tar_file.header().entry_type() {
                 tar::EntryType::Regular => {
                     let mut dst_file = File::create(dst_path)?;
+                    dst_file.set_permissions(Permissions::from_mode(tar_file.header().mode()?))?;
                     std::io::copy(&mut tar_file, &mut dst_file)?;
                 }
                 tar::EntryType::Directory => {
-                    tokio::fs::create_dir_all(dst_path).await?;
+                    tokio::fs::create_dir_all(&dst_path).await?;
+                    fs::set_permissions(
+                        dst_path,
+                        Permissions::from_mode(tar_file.header().mode()?),
+                    )?;
                 }
                 tar::EntryType::Symlink | tar::EntryType::Link => {
                     let link = tar_file
@@ -250,7 +262,51 @@ fn create_overlay_ns(build_info: &OverlayBuildInfo) -> Result<()> {
     Ok(())
 }
 
-#[tokio::main]
+fn print_process_count() -> Result<()> {
+    // https://man7.org/linux/man-pages/man2/setns.2.html
+    // let mut count = 0;
+    // for process in procfs::process::all_processes()? {
+    //     count += 1;
+    // }
+    // println!("process count: {}", count);
+    let output = Command::new("cat")
+        .args(["/proc/stat", "|", "grep", "procs_running"])
+        .output()?;
+    println!("{}", String::from_utf8_lossy(&output.stdout));
+    Ok(())
+}
+
+fn debug_mount() -> Result<()> {
+    let width = 15;
+    for mount_entry in procfs::mounts()? {
+        if !mount_entry.fs_vfstype.eq("overlay") {
+            continue;
+        }
+        println!("Device: {}", mount_entry.fs_spec);
+        println!("{:>width$}: {}", "Mount point", mount_entry.fs_file);
+        println!("{:>width$}: {}", "FS type", mount_entry.fs_vfstype);
+        // println!("{:>width$}: {}", "Dump", mount_entry.fs_freq);
+        // println!("{:>width$}: {}", "Check", mount_entry.fs_passno);
+        // print!("{:>width$}: ", "Options");
+        // for (name, entry) in mount_entry.fs_mntops {
+        //     if let Some(entry) = entry {
+        //         print!("{name}: {entry} ");
+        //     }
+        // }
+        println!("");
+    }
+
+    Ok(())
+}
+
+fn debug_ls() -> Result<()> {
+    let output = Command::new("ls").arg(".").output()?;
+    println!("{}", String::from_utf8_lossy(&output.stdout));
+    Ok(())
+}
+
+// this is necessary to force single thread for setns
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Args::try_parse()?;
 
@@ -269,24 +325,124 @@ async fn main() -> Result<()> {
         return Err(anyhow::anyhow!("overlay is not supported"));
     }
 
-    // get running container info
-    let target_process = procfs::process::Process::new(args.pid as i32)?;
-    let namespaces = target_process.namespaces().unwrap();
-    let mount_ns = namespaces.0.get(&OsString::from("mnt")).unwrap();
+    // we should handle namespace related stuff at the beginning
+    let current_process = procfs::process::Process::myself()?;
+    let original_namespace = current_process.namespaces().unwrap();
+    println!(
+        "original_namespaces: {:?}",
+        original_namespace.0.get(&OsString::from("mnt"))
+    );
+    print_process_count()?;
+    debug_mount()?;
 
-    // export rootfs image
-    let build_info = export_overlay_image(&args.overlay_image, &args.workdir, args.pull).await?;
+    // // get running container info
+    // let target_process = procfs::process::Process::new(args.pid as i32)?;
 
-    // enter process mount namespace
+    // enter process namespace
     {
-        println!("entering mount namespace: {}", mount_ns.path.display());
-        let mount_desc = File::open(mount_ns.path.clone())?;
-        let err_no = unsafe { libc::setns(mount_desc.as_raw_fd(), libc::CLONE_NEWNS) };
+        println!("entering target process namespace",);
+        let pidfd = unsafe { libc::syscall(libc::SYS_pidfd_open, args.pid, 0) };
+        if pidfd == -1 {
+            println!("pidfd_open failed: {}", pidfd);
+            return Err(anyhow::anyhow!("pidfd_open failed"));
+        }
+        let err_no = unsafe {
+            libc::setns(
+                pidfd as i32,
+                libc::CLONE_NEWCGROUP
+                    | libc::CLONE_NEWIPC
+                    | libc::CLONE_NEWNET
+                    // | libc::CLONE_NEWNS
+                    | libc::CLONE_NEWPID
+                    | libc::CLONE_NEWUTS,
+            )
+        };
         if err_no != 0 {
             println!("setns failed: {}", err_no);
             return Err(anyhow::anyhow!("setns failed"));
         }
+    };
+    let enter_namespace = current_process.namespaces().unwrap();
+    print_process_count()?;
+    println!(
+        "enter_namespaces: {:?}",
+        enter_namespace.0.get(&OsString::from("mnt"))
+    );
+    debug_mount()?;
+
+    // clone mount namespace
+    {
+        print!("clone mount namespace");
+        let err_no = unsafe { libc::unshare(libc::CLONE_NEWNS) };
+        if err_no != 0 {
+            println!("unshare failed: {}", err_no);
+            return Err(anyhow::anyhow!("unshare failed"));
+        }
     }
+    let clone_namespace = current_process.namespaces().unwrap();
+    print_process_count()?;
+    println!(
+        "clone_namespaces: {:?}",
+        clone_namespace.0.get(&OsString::from("mnt"))
+    );
+    debug_mount()?;
+
+    // chroot to new root
+    print!("chroot to overlay rootfs");
+    let err_no = unsafe {
+        libc::mount(
+            CString::new("/home/luna/Desktop/Projects/rust-ns-overlay/tmpfs/merged")
+                .unwrap()
+                .as_ptr(),
+            CString::new("/").unwrap().as_ptr(),
+            null(),
+            libc::MS_BIND,
+            null(),
+        )
+    };
+    if err_no != 0 {
+        println!("mount failed: {}", err_no);
+        return Err(anyhow::anyhow!("mount failed"));
+    }
+    unix::fs::chroot("/")?;
+    print_process_count()?;
+    debug_mount()?;
+
+    // revert to original namespace
+    // {
+    //     print!("revert to original namespace");
+    //     let mount_desc = File::open(
+    //         original_namespace
+    //             .0
+    //             .get(&OsString::from("mnt"))
+    //             .unwrap()
+    //             .path
+    //             .clone(),
+    //     )?;
+    //     let err_no = unsafe { libc::setns(mount_desc.as_raw_fd(), libc::CLONE_NEWNS) };
+    //     if err_no != 0 {
+    //         println!("setns failed: {}", err_no);
+    //         return Err(anyhow::anyhow!("setns failed"));
+    //     }
+    // }
+    // debug_mount()?;
+    // let current_process = procfs::process::Process::myself()?;
+    // let original_namespace = current_process.namespaces().unwrap();
+    // println!("reverted_namespaces: {:?}", original_namespace);
+
+    // export rootfs image
+    // let build_info = export_overlay_image(&args.overlay_image, &args.workdir, args.pull).await?;
+
+    // {
+    //     println!("entering mount namespace: {}", mount_ns.path.display());
+    //     let mount_desc = File::open(mount_ns.path.clone())?;
+    //     println!("mount_desc: {:?}", mount_desc);
+    //     let err_no = unsafe { libc::setns(mount_desc.as_raw_fd(), libc::CLONE_NEWNS) };
+    //     if err_no != 0 {
+    //         println!("setns failed: {}", err_no);
+    //         return Err(anyhow::anyhow!("setns failed"));
+    //     }
+    // }
 
     // create overlay ns
     // create_overlay_ns(&build_info)?;
@@ -302,9 +458,7 @@ async fn main() -> Result<()> {
     //     return Err(anyhow::anyhow!("unshare failed"));
     // }
 
-    // // run process in namespace
-    // let output = Command::new("ls").arg("/").output()?;
-    // println!("{}", String::from_utf8_lossy(&output.stdout));
+    // run process in namespace
 
     // create file
     // {
