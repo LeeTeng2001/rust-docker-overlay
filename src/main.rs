@@ -15,14 +15,17 @@ use std::ffi::CString;
 use std::ffi::OsString;
 use std::fs::Permissions;
 use std::fs::{self, File};
-use std::io::Read;
+use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+use std::process::Stdio;
 use std::ptr::null;
+use std::thread;
+use std::time::Duration;
 use sys_mount::SupportedFilesystems;
 use tar::Archive;
 use tokio::runtime::Runtime;
@@ -385,28 +388,48 @@ async fn main() -> Result<()> {
         "clone_namespaces: {:?}",
         clone_namespace.0.get(&OsString::from("mnt"))
     );
-    debug_mount()?;
+    // debug_mount()?;
 
-    // chroot to new root
-    print!("chroot to overlay rootfs");
-    let err_no = unsafe {
-        libc::mount(
-            CString::new("/home/luna/Desktop/Projects/rust-ns-overlay/tmpfs/merged")
-                .unwrap()
-                .as_ptr(),
-            CString::new("/").unwrap().as_ptr(),
-            null(),
-            libc::MS_BIND,
-            null(),
-        )
-    };
-    if err_no != 0 {
-        println!("mount failed: {}", err_no);
-        return Err(anyhow::anyhow!("mount failed"));
+    // WARN: following command must be run in new process context
+
+    // run subcommand
+    // fork
+    match unsafe { libc::fork() } {
+        -1 => {
+            println!("fork failed");
+            return Err(anyhow::anyhow!("fork failed"));
+        }
+        0 => {
+            println!("Child: Hello from the child process!");
+
+            let err_no = unsafe {
+                libc::mount(
+                    CString::new("/home/luna/Desktop/Projects/rust-ns-overlay/tmpfs/merged")
+                        .unwrap()
+                        .as_ptr(),
+                    CString::new("/").unwrap().as_ptr(),
+                    null(),
+                    libc::MS_BIND | libc::MS_PRIVATE,
+                    null(),
+                )
+            };
+            if err_no != 0 {
+                println!("mount failed: {}", err_no);
+                return Err(anyhow::anyhow!("mount failed"));
+            }
+            unix::fs::chroot("/")?;
+            std::env::set_current_dir("/")?;
+
+            let output = Command::new("ls").arg("/").output()?;
+            println!("child: {}", String::from_utf8_lossy(&output.stdout));
+        }
+        child_pid => {
+            println!("Parent: Child PID is {}", child_pid);
+            // let output = Command::new("ls").arg("/").output()?;
+            // println!("parent: {}", String::from_utf8_lossy(&output.stdout));
+            thread::sleep(Duration::from_secs(10));
+        }
     }
-    unix::fs::chroot("/")?;
-    print_process_count()?;
-    debug_mount()?;
 
     // revert to original namespace
     // {
