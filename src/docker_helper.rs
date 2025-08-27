@@ -1,15 +1,20 @@
 use std::collections::HashMap;
 
 use serde::{self, Deserialize, Serialize};
-use serde_json::Value;
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DockerManifestLayerSource {
+    pub media_type: String,
+    pub size: u64,
+    pub digest: String,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 pub struct DockerManifest {
-    config: String,
-    repo_tags: Vec<String>,
-    layers: Vec<String>,
-
-    #[serde(flatten)]
-    extra: HashMap<String, Value>,
+    pub config: String,
+    pub repo_tags: Vec<String>,
+    pub layers: Vec<String>,
+    pub layer_sources: HashMap<String, DockerManifestLayerSource>,
 }

@@ -8,6 +8,10 @@ pub struct Args {
     #[arg(short, long)]
     pub pid: u32,
 
+    /// pull image
+    #[arg(long, default_value_t = false)]
+    pub pull: bool,
+
     // workdir
     #[arg(short, long, default_value = "tmpfs")]
     pub workdir: String,

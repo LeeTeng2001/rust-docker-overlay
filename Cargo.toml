@@ -9,6 +9,8 @@ clap = { version = "4.5.45", features = ["derive"] }
 dockworker = "0.12.0"
 futures = "0.3.31"
 libc = "0.2.175"
+oci-spec = "0.8.2"
+procfs = "0.17.0"
 serde = "1.0.219"
 serde_json = "1.0.143"
 sys-mount = "3.0.1"
