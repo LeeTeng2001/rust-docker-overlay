@@ -309,9 +309,17 @@ fn debug_ls() -> Result<()> {
 }
 
 // this is necessary to force single thread for setns
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    let rt = Runtime::new()?;
     let args = Args::try_parse()?;
+
+    // export rootfs image
+    let build_info = rt.block_on(export_overlay_image(
+        &args.overlay_image,
+        &args.workdir,
+        args.pull,
+    ))?;
+    rt.shutdown_timeout(Duration::from_secs(0));
 
     // check for overlay support
     let supported = match SupportedFilesystems::new() {
