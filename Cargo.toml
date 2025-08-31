@@ -1,11 +1,3 @@
-[[bin]]
-name = "executor"
-path = "src/executor/main.rs"
-
-[[bin]]
-name = "nsoverlay"
-path = "src/main.rs"
-
 [package]
 name = "rust-ns-overlay"
 version = "0.1.0"
@@ -14,7 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.5.45", features = ["derive"] }
-dockworker = "0.12.0"
+dockworker = { git = "https://github.com/LeeTeng2001/dockworker.git" }
 futures = "0.3.31"
 libc = "0.2.175"
 oci-spec = "0.8.2"
@@ -25,4 +17,3 @@ sys-mount = "3.0.1"
 tar = "0.4.44"
 tokio = "1.47.1"
 tokio-util = "0.7.16"
-walkdir = "2.4"

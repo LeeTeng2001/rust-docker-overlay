@@ -3,9 +3,9 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
-    /// PID of the process to get namespace info
+    /// Docker container ID
     #[arg(short, long)]
-    pub pid: u32,
+    pub id: String,
 
     /// pull image
     #[arg(long, default_value_t = false)]
