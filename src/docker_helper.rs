@@ -1,19 +1,18 @@
 use anyhow::{Context, Result};
+use dockworker::Docker;
 use dockworker::response::Response;
-use dockworker::{Docker, container::Container};
 use futures::stream::StreamExt;
 use futures::stream::TryStreamExt;
 use oci_spec::image::MediaType;
 use std::fs::{File, Permissions, set_permissions};
 use std::io::Read;
 use std::os::unix::fs::{PermissionsExt, symlink};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, path::Path};
 use tar::Archive;
 
 use serde::{self, Deserialize, Serialize};
+
+use crate::utils;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -92,10 +91,14 @@ impl DockerHelper {
             while let Some(Ok(stat)) = download_stats.next().await {
                 match stat {
                     Response::Status(status) => {
-                        println!("{status:?}");
+                        println!("{}", status.status);
                     }
                     Response::Progress(progress) => {
-                        println!("{progress:?}");
+                        if let Some(p) = progress.progress {
+                            println!("{}", p);
+                        } else {
+                            println!("{}", progress.status);
+                        }
                     }
                     Response::Error(err) => {
                         println!("error: {err:?}");
@@ -110,7 +113,11 @@ impl DockerHelper {
         {
             println!("exporting overlay image: {}", image);
             let mut tmp_file = tokio::fs::File::create(&tar_path).await?;
-            let img_res = self.docker.export_image(image).await?;
+            let img_res = self
+                .docker
+                .export_image(image)
+                .await
+                .context("unable to export image")?;
             let mut res = tokio_util::io::StreamReader::new(
                 img_res.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err)),
             );
@@ -185,45 +192,9 @@ impl DockerHelper {
                 ));
             }
 
-            // decompress
-            let mut tar_archive = Archive::new(std::io::Cursor::new(layer_blob));
-            for entry in tar_archive.entries().unwrap() {
-                let mut tar_file = entry?;
-                let path = tar_file.path()?;
-                let dst_path = export_dir.join(&path);
-
-                match tar_file.header().entry_type() {
-                    tar::EntryType::Regular => {
-                        let mut dst_file = File::create(dst_path)?;
-                        dst_file
-                            .set_permissions(Permissions::from_mode(tar_file.header().mode()?))?;
-                        std::io::copy(&mut tar_file, &mut dst_file)?;
-                    }
-                    tar::EntryType::Directory => {
-                        tokio::fs::create_dir_all(&dst_path).await?;
-                        set_permissions(
-                            dst_path,
-                            Permissions::from_mode(tar_file.header().mode()?),
-                        )?;
-                    }
-                    tar::EntryType::Symlink | tar::EntryType::Link => {
-                        let link = tar_file
-                            .header()
-                            .link_name()?
-                            .unwrap()
-                            .to_string_lossy()
-                            .to_string();
-                        let original_path = Path::new(&link);
-                        symlink(original_path, &dst_path)
-                            .map_err(|e| anyhow::anyhow!("failed to symlink: {}", e))?;
-                    }
-                    _ => println!(
-                        "warning: skipping entry type: {:?} for {}",
-                        tar_file.header().entry_type(),
-                        dst_path.display()
-                    ),
-                }
-            }
+            // extract archive
+            let mut blob_reader = std::io::Cursor::new(layer_blob);
+            utils::extract_archive(&mut blob_reader, &export_dir)?;
         }
 
         Ok(())
