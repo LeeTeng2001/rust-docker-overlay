@@ -4,7 +4,7 @@ use clap::Parser;
 #[command(version, about, long_about = None)]
 pub struct Args {
     /// Docker container ID
-    #[arg(short, long)]
+    #[arg()]
     pub id: String,
 
     /// pull image
