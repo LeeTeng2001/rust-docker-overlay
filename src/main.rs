@@ -173,6 +173,11 @@ fn main() -> Result<()> {
                         &abs_rootfs_base_dir.display(),
                     ))?;
             }
+            // unmount
+            sys_mount::unmount(&container_mount_path, UnmountFlags::DETACH)?;
+            if args.unmount_on_exit {
+                sys_mount::unmount(&mergedfs_dir, UnmountFlags::DETACH)?;
+            }
             return Ok(());
         }
         // If fork fails

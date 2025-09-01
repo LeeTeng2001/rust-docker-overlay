@@ -15,7 +15,7 @@ pub struct Args {
     #[arg(short, long, default_value = "tmpfs")]
     pub workdir: String,
 
-    /// overlay image to act as rootfs
+    /// image to act as rootfs
     #[arg(long, default_value_t = String::from("ubuntu:latest"))]
     pub image: String,
 
@@ -30,6 +30,10 @@ pub struct Args {
     // mount container fs instead of overlaying on top of it, this is the mount path inside container
     #[arg(long, default_value_t = String::from("/mnt/container"))]
     pub container_mount_path: String,
+
+    /// unmount mergedfs on exit
+    #[arg(long, default_value_t = true)]
+    pub unmount_on_exit: bool,
 }
 
 impl Args {

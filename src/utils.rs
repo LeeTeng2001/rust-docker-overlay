@@ -21,7 +21,7 @@ pub fn extract_archive(reader: &mut dyn Read, dst_dir: &Path) -> Result<()> {
                 copy(&mut tar_file, &mut dst_file)?;
             }
             tar::EntryType::Directory => {
-                create_dir_all(&dst_path);
+                create_dir_all(&dst_path)?;
                 set_permissions(dst_path, Permissions::from_mode(tar_file.header().mode()?))?;
             }
             tar::EntryType::Symlink | tar::EntryType::Link => {

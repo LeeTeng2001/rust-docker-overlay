@@ -4,9 +4,8 @@ use dockworker::response::Response;
 use futures::stream::StreamExt;
 use futures::stream::TryStreamExt;
 use oci_spec::image::MediaType;
-use std::fs::{File, Permissions, set_permissions};
+use std::fs::{File};
 use std::io::Read;
-use std::os::unix::fs::{PermissionsExt, symlink};
 use std::{collections::HashMap, path::Path};
 use tar::Archive;
 
