@@ -16,7 +16,7 @@ pub struct Args {
     pub workdir: String,
 
     /// image to act as rootfs
-    #[arg(long, default_value_t = String::from("ubuntu:latest"))]
+    #[arg(long, default_value_t = String::from("debian:12"))]
     pub image: String,
 
     /// reuse image cache
