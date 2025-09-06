@@ -1,10 +1,11 @@
 use anyhow::{Context, Result};
 use dockworker::Docker;
+use dockworker::image::ListImageFilters;
 use dockworker::response::Response;
 use futures::stream::StreamExt;
 use futures::stream::TryStreamExt;
 use oci_spec::image::MediaType;
-use std::fs::{File};
+use std::fs::File;
 use std::io::Read;
 use std::{collections::HashMap, path::Path};
 use tar::Archive;
@@ -83,7 +84,16 @@ impl DockerHelper {
         export_dir: &Path,
         pull: bool,
     ) -> Result<()> {
-        if pull {
+        // check image exist
+        let mut image_filter = ListImageFilters::default();
+        image_filter.reference = Some(vec![image.to_string()]);
+        let list_image_info = self
+            .docker
+            .images(false, Some(image_filter))
+            .await
+            .context("list images")?;
+
+        if list_image_info.len() == 0 || pull {
             println!("pulling overlay image: {}", image);
             let (image_name, tag) = image.split_once(":").unwrap_or((image, "latest"));
             let mut download_stats = self.docker.create_image(image_name, tag).await?;

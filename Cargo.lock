@@ -436,7 +436,7 @@ dependencies = [
 [[package]]
 name = "dockworker"
 version = "0.11.0"
-source = "git+https://github.com/LeeTeng2001/dockworker.git#032c895e5840b1844855c1427c81a8dfead75821"
+source = "git+https://github.com/LeeTeng2001/dockworker.git#f63e17a3726a3da317b57296b05293a3a687dd18"
 dependencies = [
  "async-stream",
  "async-trait",
