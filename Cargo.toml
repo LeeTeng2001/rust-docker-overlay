@@ -14,7 +14,7 @@ oci-spec = "0.8.2"
 procfs = "0.17.0"
 serde = "1.0.219"
 serde_json = "1.0.143"
-sys-mount = "3.0.1"
+sys-mount = { version = "3.0.1", default-features = false }
 tar = "0.4.44"
 tokio = "1.47.1"
 tokio-util = "0.7.16"
