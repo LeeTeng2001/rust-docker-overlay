@@ -21,8 +21,17 @@ use sys_mount::SupportedFilesystems;
 use sys_mount::UnmountFlags;
 use tokio::runtime::Runtime;
 
+use crate::cli::VerArgs;
+
 // this is necessary to force single thread for setns
 fn main() -> Result<()> {
+    let ver_args = VerArgs::parse();
+    if ver_args.version {
+        println!("version: {}", env!("PROGRAM_VERSION"));
+        println!("commit : {}", env!("VERGEN_GIT_SHA"));
+        return Ok(());
+    }
+
     // check for overlay support
     let supported = match SupportedFilesystems::new() {
         Ok(supported) => supported,

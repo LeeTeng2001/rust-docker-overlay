@@ -1,7 +1,15 @@
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(disable_version_flag = true, about, long_about = None)]
+pub struct VerArgs {
+    // version
+    #[arg(short, long, default_value_t = false)]
+    pub version: bool,
+}
+
+#[derive(Parser, Debug)]
+#[command(disable_version_flag = true, about, long_about = None)]
 pub struct Args {
     /// Docker container ID
     #[arg()]

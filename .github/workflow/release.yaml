@@ -1,0 +1,22 @@
+name: Publish Crate
+
+on:
+  release:
+    types: [published]   # only when a GitHub Release is published
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build release binary
+        env:
+          PROGRAM_VERSION: ${{ github.event.release.tag_name }}
+        run: cargo build --release
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/rust-ns-overlay
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
