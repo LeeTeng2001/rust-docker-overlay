@@ -30,3 +30,11 @@ $ sudo ./rust-ns-overlay <container_id>
 ```bash
 $ sudo ./rust-ns-overlay <container_id> --image ubuntu:latest
 ```
+
+
+[ci-img]: https://github.com/LeeTeng2001/rust-docker-overlay/actions/workflows/ci.yaml/badge.svg
+[ci]: https://github.com/LeeTeng2001/rust-docker-overlay/actions/workflows/ci.yaml
+[cov-img]: https://codecov.io/gh/LeeTeng2001/rust-docker-overlay/graph/badge.svg?token=464MN13408
+[cov]: https://codecov.io/gh/LeeTeng2001/rust-docker-overlay
+[release-img]: https://img.shields.io/github/v/release/LeeTeng2001/rust-docker-overlay?sort=semver
+[release]: https://github.com/LeeTeng2001/rust-docker-overlay/releases/latest
