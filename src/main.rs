@@ -25,8 +25,10 @@ use crate::cli::VerArgs;
 
 // this is necessary to force single thread for setns
 fn main() -> Result<()> {
-    let ver_args = VerArgs::parse();
-    if ver_args.version {
+    let ver_args = VerArgs::try_parse();
+    if let Ok(arg) = ver_args
+        && arg.version
+    {
         println!("version: {}", env!("PROGRAM_VERSION"));
         println!("commit : {}", env!("VERGEN_GIT_SHA"));
         return Ok(());
