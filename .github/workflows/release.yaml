@@ -28,27 +28,27 @@ jobs:
             family: linux
             arch: x86_64
             target: x86_64-unknown-linux-gnu
-            asset: hl-linux-x86_64-gnu.tar.gz
+            asset: rust-ns-overlay-linux-x86_64-gnu.tar.gz
           - name: linux-x86-musl
             os: ubuntu-latest
             family: linux
             arch: x86_64
             target: x86_64-unknown-linux-musl
-            asset: hl-linux-x86_64-musl.tar.gz
+            asset: rust-ns-overlay-linux-x86_64-musl.tar.gz
             cross: true
           - name: linux-arm-gnu
             os: ubuntu-latest
             family: linux
             arch: aarch64
             target: aarch64-unknown-linux-gnu
-            asset: hl-linux-arm64-gnu.tar.gz
+            asset: rust-ns-overlay-linux-arm64-gnu.tar.gz
             cross: true
           - name: linux-arm-musl
             os: ubuntu-latest
             family: linux
             arch: aarch64
             target: aarch64-unknown-linux-musl
-            asset: hl-linux-arm64-musl.tar.gz
+            asset: rust-ns-overlay-linux-arm64-musl.tar.gz
             cross: true
     steps:
       - uses: actions/checkout@v4
@@ -75,7 +75,7 @@ jobs:
           PROGRAM_VERSION: ${{ github.event.release.tag_name }}
         run: echo ${{ matrix.target }} | xargs -n 1 ${{ env.CARGO }} build --release --locked --verbose --target
       - name: Package using `tar`
-        run: tar -C ./target/${{ matrix.target }}/release -cz -f ${{ matrix.asset }} hl
+        run: tar -C ./target/${{ matrix.target }}/release -cz -f ${{ matrix.asset }} rust-ns-overlay
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
