@@ -15,12 +15,12 @@ pub struct Args {
     #[arg()]
     pub id: String,
 
-    /// pull image
+    /// force repull image
     #[arg(long, default_value_t = false)]
     pub pull: bool,
 
-    // workdir
-    #[arg(short, long, default_value = "tmpfs")]
+    /// workdir
+    #[arg(short, long, default_value = "/var/lib/rustnsoverlay/work")]
     pub workdir: String,
 
     /// image to act as rootfs
@@ -28,14 +28,14 @@ pub struct Args {
     pub image: String,
 
     /// reuse image cache
-    #[arg(long, default_value_t = false)]
+    #[arg(long, default_value_t = true)]
     pub cache: bool,
 
     /// work cache directory
     #[arg(long, default_value_t = String::from("/var/cache/rustnsoverlay"))]
     pub cache_dir: String,
 
-    // mount container fs instead of overlaying on top of it, this is the mount path inside container
+    /// container fs mount path inside debug rootfs
     #[arg(long, default_value_t = String::from("/mnt/container"))]
     pub container_mount_path: String,
 
