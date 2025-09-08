@@ -7,6 +7,10 @@ A useful container debug utility built with rust. It enables user to quickly bui
 * __[Use any rootfs](#specify-a-different-rootfs)__: Choose your favourite debug distro, default to debian. By default it'll persist any modification made to the rootfs and let you reuse the same rootfs across multiple session/containers.
 * __Debug in container namespace__: After execution you'll enter all container namespace except `mount` which is located at `/mnt/container` to avoid polluting rootfs path
 
+## Demo
+
+![demo](./assets/demo.gif)
+
 ## Quickstart
 
 Download binary
